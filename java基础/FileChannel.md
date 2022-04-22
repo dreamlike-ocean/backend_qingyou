@@ -109,7 +109,7 @@ ByteBuffer buffer = ByteBuffer.allocateDirect(int capacity);
 
 实际上就是读取全部然后再追加回去
 
-若你需要一些特殊的flag比如说`direct_o` 请看看ExtendedOpenOption 
+若你需要一些特殊的flag比如说`O_DIRECT` 请看看ExtendedOpenOption 
 
 ```java
         File file = new File("temp.txt");
@@ -156,6 +156,46 @@ File file = new File("temp.txt");
 2. 数据不再被复制到socket关联的缓冲区中了，仅仅是将一个描述符（包含了数据的位置和长度等信息）追加到socket关联的缓冲区中。DMA直接将内核中的缓冲区中的数据传输给协议引擎，消除了仅剩的一次需要cpu周期的数据复制。
 3. ![1650621923358](assets/1650621923358.png)
 
+#### 刷新到硬盘和page cache
+
+```java
+write_channel.force(true);
+```
+
+为什么要刷盘？
+
+CPU如果要访问外部磁盘上的文件，需要首先将这些文件的内容拷贝到内存中，由于硬件的限制，从磁盘到内存的数据传输速度是很慢的，如果现在物理内存有空余，干嘛不用这些空闲内存来缓存一些磁盘的文件内容呢，这部分用作**缓存磁盘文件**的内存就叫做page cache。
+
+用户进程启动read()系统调用后，内核会首先查看page cache里有没有用户要读取的文件内容，如果有（cache hit），那就直接读取，没有的话（cache miss）再启动I/O操作从磁盘上读取，然后放到page cache中，下次再访问这部分内容的时候，就又可以cache hit，不用忍受磁盘的龟速了（相比内存慢几个数量级）。
+
+那么什么时候触发刷盘呢？
+
+- **从空间的层面**，当系统中"dirty"的内存大于某个阈值时。该阈值以在[dirtyable memory](https://zhuanlan.zhihu.com/p/133173214)中的占比"dirty_background_ratio"（默认为**10%**），或者绝对的字节数"dirty_background_bytes"（2.6.29内核引入）给出。如果两者同时设置的话，那么以"bytes"为更高优先级。
+
+此外，还有"dirty_ratio"（默认为**20%**）和"dirty_bytes"，它们的意思是当"dirty"的内存达到这个数量（屋里太脏），进程自己都看不过去了，宁愿停下手头的write操作（被阻塞，**同步**），先去把这些"dirty"的writeback了（把屋里打扫干净）。
+
+而如果"dirty"的程度介于这个值和"background"的值之间（**10% - 20%**），就交给后面要介绍的专门负责writeback的background线程去做就好了（专职的清洁工，**异步**）。
+
+- **从时间的层面**，即**周期性**的扫描（扫描间隔用"dirty_writeback_interval"表示，以毫秒为单位），发现存在最近一次更新时间超过某个阈值的pages（该阈值用"dirty_expire_interval"表示， 以毫秒为单位）。
+
+若你的服务是需要保证数据不丢失，需要立刻刷入磁盘就需要自己手动刷一下 即force一下，以防止出现操作系统还没刷盘就崩溃的情况
+
+**注意**：/proc/sys/vm文件夹查看或修改以上提到的几个参数
+
+因为page cache的存在 所以连续访问的性能比随机访问好很多
+
+#### O_DIRECT
+
+这个flag太有意义 所以我单开一个写
+
+这个flag实际上就是绕开page cache直接写磁盘，你可能会思考，绕开page cache不会导致性能很差吗？
+
+实际上做数据库这种应用的时候用的很多，此时需要自己维护一套受控制的”page cache“机制
+
+其还有几个缺点，比如说需要自己做内存对齐，虽然是直通硬盘但也不是确保完全刷盘（O_DIRECT只是绕过了page cache，但它并不等待数据真正写到了磁盘上。open()中flags参数使用**O_SYNC**才能保证writepage()会等到数据可靠的写入磁盘后再返回，适用于某些不容许数据丢失的关键应用）
+
+这个实际上用的很少，以至于jdk10才加入这个flag功能
+
 ### 结论
 
 java提供的filechannel实际上就是提供了一套对应到glibc IO原语的java api
@@ -165,3 +205,7 @@ java提供的filechannel实际上就是提供了一套对应到glibc IO原语的
 [OpenJDK: Panama (java.net)](http://openjdk.java.net/projects/panama/)
 
 在本文完成时（2022年4月22日），这个project已经进入孵化器状态，已经合并进主线，下一个lts将正式进入系统库
+
+本文仍有很多不足之处，毕竟unix编程花了半本书来讲述这些系统调用的实现和使用，以及坑。请读者自行进行扩展学习操作系统等相关知识。
+
+**若有时间请一定要用C试试这些IO原语加强理解能力**
