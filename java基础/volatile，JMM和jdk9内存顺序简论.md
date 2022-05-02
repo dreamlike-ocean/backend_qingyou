@@ -236,7 +236,7 @@ class A{
 
 ### Volatile 
 
-笑死 终于到Volatile了,简单的单变量不再赘述
+笑死 终于到Volatile了,简单的单变量的可见性不再赘述
 
 我们直接看看两个变量情况的内存变化的爱恨情仇
 
@@ -311,4 +311,18 @@ P* tmp = new P();
 不同的线程可能看到了虽然初始化分配了一块内存 构造函数也执行完毕了，但是**final变量没有初始化**，因为发生了重排。所以jvm需要增强final的语义以确保final在构造结束后必须被赋值完毕。
 
 这就是为什么jvm为final加入了storestore屏障的原因
+
+#### Spring Bean 初始化如何保证线程安全
+
+看了final这个情况，你可能会想 我们写spring代码的时候经常使用字段注入，既没有final也没有volatie，那我们并发获取到一个bean的时候会存在对应的字段没有正确初始化的问题吗？
+
+1. Spring 的 Bean 会存储在一个 map 中（`DefaultSingletonBeanRegistry::singletonObjects`）
+2. 每次存储或获取某个 Bean，都会显示在这个 map 上加内置锁（synchronized）
+3. 由于 JMM 的“监视器锁规则”，lock 能看到同一个监视器的 unlock 前的变化
+
+于是，我们只要注入了某个 Bean，那么这个 Bean 的初始化的内容就是可见的，上例中，在 `MyService` 中看到了 `myData` 这个 Bean，就可以保证 `myData` 已经被正确初始化了。并且这里的初始化不仅仅指构造函数中的内容，而是 Spring 语境下的初始化，还包括setter 注入，PostConstruct 初始化等。
+
+但是要注意，这个机制要求 Bean 的初始化和获取都是通过 Spring 完成的。如果 Bean 初始化后又做了修改，或者 Bean 不是通过 ApplicationContext 或 Autowired 获取的，则没有这个可见性保证。
+
+[java - Should I mark object attributes as volatile if I init them in @PostConstruct in Spring Framework? - Stack Overflow](https://stackoverflow.com/questions/23906808/should-i-mark-object-attributes-as-volatile-if-i-init-them-in-postconstruct-in/23992532#23992532)
 
