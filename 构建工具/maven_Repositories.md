@@ -90,3 +90,30 @@ Maven中的仓库包含各种类型的构建产物和依赖包。
 </repository>
 ```
 
+### 把构建产物放到仓库
+
+有时，您需要将第三方 JAR 放在本地仓库才能在构建中使用，因为它们不存在于任何公共仓库中（如 [Maven Central）](https://search.maven.org/)中。
+
+JAR 必须放置在本地仓库的正确位置，以便 Apache Maven 正确地找到它
+
+1，若已经存在了jar包
+
+```shell
+mvn install:install-file -Dfile=<path-to-file> -DgroupId=<group-id> -DartifactId=<artifact-id> -Dversion=<version> -Dpackaging=<packaging>
+```
+
+2，存在jar 而且存在一个pom.xml
+
+```shell
+mvn install:install-file -Dfile=<path-to-file> -DpomFile=<path-to-pomfile>
+```
+
+3，从源码开始构建然后放到仓库
+
+```shell
+mvn install
+```
+
+举个例子
+
+![1652098789422](assets/1652098789422.png)
