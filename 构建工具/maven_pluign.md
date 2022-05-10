@@ -307,8 +307,6 @@ mvn install -Dmaven.test.skip=true
 </project>
 ```
 
-
-
 #### shade （重命名）
 
 如果uber JAR被重用为其他项目的依赖项，直接将依赖项中的类包含在uber JAR中可能会由于类路径上的重复类而导致类加载冲突。为了解决这个问题，可以重命名其中包含的类，以便创建私有的字节码副本。
@@ -358,3 +356,54 @@ mvn install -Dmaven.test.skip=true
 ```
 
 一目了然
+
+### SpringBoot插件
+
+我们在springboot开发中会发现其实很多情况下我们只需要它自己带的一个SpringBoot插件，这个插件实际上是个复合插件（比如shade等），通过配置这个插件就可以做到很多事情
+
+首先你的项目肯定是继承于 `spring-boot-starter-parent`的，所以它默认有这些特性
+
+- 默认编译的目标版本是1.8
+- 默认UTF-8作为文件编码
+- 编译参数带有`-paramters`
+- 过滤了一些合理的资源
+- 合理的插件配置
+
+#### 从命令行覆盖配置
+
+例如，可以在运行应用程序时调整配置文件以选择启用哪个文件，如下所示：
+
+```shell
+mvn spring-boot:run -Dspring-boot.run.profiles=dev,local
+```
+
+#### 打包为可执行的jar包
+
+你只需要`mvn package`
+
+```xml
+<build>
+    <plugins>
+        <plugin>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-maven-plugin</artifactId>
+            <executions>
+                <execution>
+                    <goals>
+                        <goal>repackage</goal>
+                    </goals>
+                </execution>
+            </executions>
+        </plugin>
+    </plugins>
+</build>
+
+```
+
+如果你的项目继承的是`spring-boot-starter-parent`，那么这样的执行已经预先配置了一个`repackage`execution ID，因此只需要添加插件定义就行了。
+
+它同时会产生以一个同名但是以`.original`结尾的文件，这个就是一个只包含src代码的jar包
+
+![1652190297230](assets/1652190297230.png)
+
+其余内容可以查看[Spring Boot Maven Plugin Documentation](https://docs.spring.io/spring-boot/docs/current/maven-plugin/reference/htmlsingle/#?)
