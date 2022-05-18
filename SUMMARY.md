@@ -11,18 +11,18 @@
 * [FileChannel](java基础/FileChannel.md)
 * [异常](java基础/异常.md)
 * [并发编程](java基础/多线程和并发导论.md)
-  * [volatile,JMM和JDK9内存顺序简述](java基础/volatile，JMM和jdk9内存顺序简论.md)
   * [线程池](java基础/线程池.md)
   * [线程安全-1](java基础/线程安全(1).md)
   * [线程安全-2](java基础/线程安全(2).md)
+  * [volatile,JMM和JDK9内存顺序简述](java基础/volatile，JMM和jdk9内存顺序简论.md)
 * [拓展内容](java基础/拓展内容.md)
 
 ## 构建工具
 * [Maven](构建工具/maven_get_start.md)
-  * [idea](构建工具/maven_idea.md)
+  * [依赖](构建工具/maven_dependencies.md) 
+  * [仓库](构建工具/maven_Repository.md)
   * [插件](构建工具/maven_plugin.md)
-  * [依赖](构建工具/maven_dependency.md)
-  * [仓库](构建工具/maven_repository.md)
+  * [idea](构建工具/maven_idea.md)
 
 ## Redis
 * [Redis](redis/Redis%E7%AC%94%E8%AE%B0.md)
