@@ -25,7 +25,7 @@ HTTP 请求和响应具有相似的结构，由以下部分组成︰
 
 始行和  HTTP 消息中的HTTP 头统称为请求头，而其有效负载被称为消息正文。
 
-插入一个思考题：若你在写协议解析 那么http解析过程中有多少种状态呢？
+插入一个思考题：若你在写协议解析 那么http解析过程中有多少种状态呢？ [答案点我](#answer)
 
 ![Requests and responses share a common structure in HTTP](assets/HTTPMsgStructure2.png)
 
@@ -122,7 +122,7 @@ Body 大致可分为三类：
 - Single-resource bodies，由**未知**长度的单个文件组成，通过将 [`Transfer-Encoding`](https://developer.mozilla.org/zh-CN/docs/Web/HTTP/Headers/Transfer-Encoding) 设置为 `chunked `来使用 chunks 编码。
 - [Multiple-resource bodies](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types#multipartform-data)，由多部分 body 组成，每部分包含不同的信息段。但这是比较少见的。
 
-### 思考题解答
+### <a id="answer">思考题解答</a>
 
 若你在写协议解析 那么http解析过程中有多少种状态呢？
 
