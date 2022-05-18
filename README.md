@@ -1,6 +1,8 @@
 # backend_qingyou
 本文面向于基础的后端开发入门，用于帮助青柚工作室后端新生入门
 
+在线阅读地址为 https://dreamlike-vertx.gitbook.io/qing-you-hou-duan-xiao-ce/
+
 作为最基础的小册，您可以从中学到最基础的后端开发的技巧和知识，以及~~作者掺的私货~~
 
 目前的大方向
