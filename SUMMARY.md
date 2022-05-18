@@ -20,7 +20,7 @@
 ## 构建工具
 * [Maven](构建工具/maven_get_start.md)
   * [依赖](构建工具/maven_dependencies.md) 
-  * [仓库](构建工具/maven_Repository.md)
+  * [仓库](构建工具/maven_repositories.md)
   * [插件](构建工具/maven_plugin.md)
   * [idea](构建工具/maven_idea.md)
 
