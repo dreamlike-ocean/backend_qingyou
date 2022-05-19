@@ -33,6 +33,7 @@
   * [URI](网络协议/http/http(2)uri.md)
   * [协议组成](网络协议/http/http(3)协议构成.md)
   * [REST](网络协议/http/http(4)restful.md)
+  * [httpclient](网络协议/http/http(5)jdk的httpclient.md)
 
 ## dreamlike的私货
 * [Loom](dreamlike的私货/Project%20Loom%20Java虚拟机的纤程和计算续体.md)
