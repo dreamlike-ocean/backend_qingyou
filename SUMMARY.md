@@ -24,6 +24,9 @@
   * [插件](构建工具/maven_plugin.md)
   * [idea](构建工具/maven_idea.md)
 
+## MySQL
+  * [MySQL基础](MySQL/MySQL基础.md)
+
 ## Redis
 * [Redis](redis/Redis%E7%AC%94%E8%AE%B0.md)
 
