@@ -15,6 +15,7 @@
   * [线程安全-1](java基础/线程安全(1).md)
   * [线程安全-2](java基础/线程安全(2).md)
   * [volatile,JMM和JDK9内存顺序简述](java基础/volatile，JMM和jdk9内存顺序简论.md)
+* [java socket api及其native实现](java基础/socket.md)
 * [拓展内容](java基础/拓展内容.md)
 
 ## 构建工具
@@ -44,3 +45,4 @@
   * [State of Loom - Part 1](/dreamlike的私货/state_of_loom_part1.md)
   * [State of Loom - Part 2](/dreamlike的私货/state_of_loom_part2.md)
   * [Spring的Loom化改造](dreamlike的私货/Spring的loom化改造.md)
+  * [loom的实现](dreamlike的私货/loom的实现.md)
