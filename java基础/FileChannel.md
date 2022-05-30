@@ -89,6 +89,8 @@ write(file_fd, tmp_buf, len);
 
 同理write原语 java heap -> c heap -> kneral
 
+具体请参考[复制和固定 - IBM 文档](https://www.ibm.com/docs/zh/sdk-java-technology/7?topic=jnij-copying-pinning-1)
+
 ### directbuffer
 
 如果我们能提供一个长时间有效的，不受GC管理的地址 就可以做到和C语言调用一样的效果了
@@ -208,4 +210,4 @@ java提供的filechannel实际上就是提供了一套对应到glibc IO原语的
 
 本文仍有很多不足之处，毕竟unix编程花了半本书来讲述这些系统调用的实现和使用，以及坑。请读者自行进行扩展学习操作系统等相关知识。
 
-**若有时间请一定要用C试试这些IO原语加强理解能力**
+**若有时间请一定要用C试试这些IO原语 加强理解**
