@@ -398,4 +398,4 @@ panama做了很多工作，不只是修改了库还有jvm。
 
 [OpenJDK: Panama (java.net)](https://openjdk.java.net/projects/panama/)
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/4xFV-A7JToY" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+[Project Panama: Say Goodbye to JNI ](https://www.youtube.com/watch?v=4xFV-A7JToY)
