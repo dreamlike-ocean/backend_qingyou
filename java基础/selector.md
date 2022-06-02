@@ -94,6 +94,34 @@ Selector selector = Selector.open();
 
 #### 一些小细节
 
+##### 传输文件
+
+在[FileChannel](FileChannel.md)提到了一个transferTo方法 给两个channel之间拷贝数据，实际上它也可以用于在网络中传输大块的数据，比如说传输文件
+
+```java
+public void sendfile(FileChannel fileChannel,SocketChannel socketChannel) throws IOException {
+        fileChannel.transferTo(0, fileChannel.size(), socketChannel);
+}
+```
+
+当我们需要在网络中传输一个文件时，为了避免CPU拷贝就可以使用这个方法（在之后的nio网络编程章节会进行补充）
+
+其内部实现依赖于操作系统对zero copy技术的支持。在unix操作系统和各种linux的版本中，这种功能最终是通过sendfile()系统调用实现。
+
+我来给大家证明一下，通过代码追踪可得到最后会触发到FileChannelImpl的transferTo0方法上面，直接去看对应的c实现：
+
+![1654179042207](assets/1654179042207.png)
+
+其实就是调用[sendfile64](https://linux.die.net/man/2/sendfile64) 
+
+在内核为2.4或者以上版本的linux系统上，socket缓冲区描述符将被用来满足这个需求。这个方式不仅减少了内核用户态间的切换，而且也省去了那次需要cpu参与的复制过程。 从用户角度来看依旧是调用transferTo()方法，但是其本质发生了变化：
+
+1. 调用transferTo方法后数据被DMA从文件复制到了内核的一个缓冲区中。
+2. 数据不再被复制到socket关联的缓冲区中了，仅仅是将一个描述符（包含了数据的位置和长度等信息）追加到socket关联的缓冲区中。DMA直接将内核中的缓冲区中的数据传输给协议引擎，消除了仅剩的一次需要cpu周期的数据复制。
+3. ![1650621923358](../java%E5%9F%BA%E7%A1%80/assets/1650621923358.png)
+
+#### 
+
 ##### wakeup
 
 实际上你会发现`selector::select`会导致线程阻塞起来，若想立刻唤醒对应线程该怎么办？
