@@ -120,7 +120,7 @@ public void sendfile(FileChannel fileChannel,SocketChannel socketChannel) throws
 2. 数据不再被复制到socket关联的缓冲区中了，仅仅是将一个描述符（包含了数据的位置和长度等信息）追加到socket关联的缓冲区中。DMA直接将内核中的缓冲区中的数据传输给协议引擎，消除了仅剩的一次需要cpu周期的数据复制。
 3. ![1650621923358](../java%E5%9F%BA%E7%A1%80/assets/1650621923358.png)
 
-#### 
+
 
 ##### wakeup
 
@@ -169,13 +169,19 @@ Object o = selectionKey.attachment();
 
 Selector 对于多个并发线程来说是安全的，听起来很不错对吧？
 
-实际上不注意很容易导致死锁,比如说一个线程无限期等待select返回，另外一个线程去register，这就会导致死锁。因为它们会争抢同一个publishkey对象作为monitor（这个结论实际上来自于jdk8的源码）
+实际上不注意很容易导致死锁,比如说一个线程无限期等待select返回，另外一个线程去register，这就会导致死锁。因为它们会争抢同一个publishkey对象作为monitor（这个结论实际上来自于jdk8的源码）[JDK-6446653 ](https://bugs.openjdk.java.net/browse/JDK-6446653)
 
 从jdk11来看，不存在这个问题，但是我们不能保证运行我们代码的环境不是8，虽然现在有向更高迁移的趋势。
 
 正确的思路应该是：
 
 用个生产者消费者模型，把要 register 的 channel 放到队列中，selector线程在每次 select 前先 register 队列中的 channel 即可，若selector线程在阻塞就再加一步wakeup即可，实际上netty和jdk11也是这样实现的。
+
+##### 最佳实践
+
+一个线程一个selector用于轮询fd，而且多个selector没有共享的监听fd。
+
+对于selector的register和select操作必须在同一个线程中，以上的目的在于避免竞态
 
 #### 各个平台的selector实现
 
@@ -191,7 +197,260 @@ Windows：
 
 17之前是基于[select](https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-select)的，一次性只能监听1024个fd，而且其效率是O(n)，n为监听的fd数量，因为上限只有1024个，所以超过的部分会多开线程来监听，每1024fd开一个线程监听，每次的select方法调用都是统计一下各个线程汇报上来的消息。
 
-17开始是基于[wepoll](https://github.com/piscisaureus/wepoll)的，其底层是IOCP——一种AIO实现，具体讨论请看[[JDK-8266369\]](https://bugs.openjdk.java.net/browse/JDK-8266369)性能相较于过去好很多
+17开始是基于[wepoll](https://github.com/piscisaureus/wepoll)的，其底层是IOCP——一种AIO实现，具体讨论请看[JDK-8266369](https://bugs.openjdk.java.net/browse/JDK-8266369),这种实现性能相较于过去好很多
 
+### Linux的C实现
 
+现在我们已经知道了Linux上的实现是基于Epoll的。
 
+让我们先来看看Epoll的手册
+ The following system calls are provided to create and manage an **epoll** instance:
+
+* epoll_create(2) creates a new epoll instance and returns a file descriptor referring to that instance. 
+*  Interest in particular file descriptors is then registered via epoll_ctl(2), which adds items to the interest list of the epoll instance.
+*  epoll_wait(2)  waits  for I/O events, blocking the calling thread if no events are currently available.  (This system call can be thought of as fetching items from the ready list of the epoll instance.)
+
+简单来说就是epoll_create创造一个epoll实例，epoll_ctl将fd纳入其管理（比如说挂载事件），epoll_wait等待触发一个事件。我们经常说java只是一层很薄的系统调用封装，从这里就可以窥见端倪。
+
+我们先不看实现，思考一下这三个api可能是在哪调用的？epoll_ctl->selector.<init> ，epoll_ctl->socketChannel.register,epoll_wait->select.select
+
+然后再看看代码验证一下
+
+#### EpollSelectorImpl::<init>
+
+```java
+EPollSelectorImpl(SelectorProvider sp) throws IOException {
+        super(sp);
+    //获取epoll实例
+        this.epfd = EPoll.create();
+        this.pollArrayAddress = EPoll.allocatePollArray(NUM_EPOLLEVENTS);
+
+        try {
+            //上文已经解释了 这个用于wakeup操作 并且给pipe设定为非阻塞
+            long fds = IOUtil.makePipe(false);
+            this.fd0 = (int) (fds >>> 32);
+            this.fd1 = (int) fds;
+        } catch (IOException ioe) {
+            EPoll.freePollArray(pollArrayAddress);
+            FileDispatcherImpl.closeIntFD(epfd);
+            throw ioe;
+        }
+
+        // 将pipe的读端挂载读事件
+        EPoll.ctl(epfd, EPOLL_CTL_ADD, fd0, EPOLLIN);
+    }
+
+//Epoll.c
+JNIEXPORT jint JNICALL
+Java_sun_nio_ch_EPoll_create(JNIEnv *env, jclass clazz) {
+    /* size hint not used in modern kernels */
+    int epfd = epoll_create(256);
+    if (epfd < 0) {
+        JNU_ThrowIOExceptionWithLastError(env, "epoll_create failed");
+    }
+    return epfd;
+}
+```
+
+必要的地方已经做了标识，我们讲一讲一些小细节
+
+`EPoll.allocatePollArray(NUM_EPOLLEVENTS)`这个实际上就是申请了堆外的一段内存用于存放epoll_event的，我们最关心的NUM_EPOLLEVENTS这个参数决定了一次select最多可以获取到多少就绪事件
+
+```java
+private static final int NUM_EPOLLEVENTS = Math.min(IOUtil.fdLimit(), 1024);
+//IOUtil.c
+JNIEXPORT jint JNICALL
+Java_sun_nio_ch_IOUtil_fdLimit(JNIEnv *env, jclass this)
+{
+    struct rlimit rlp;
+    //关注这个调用
+    if (getrlimit(RLIMIT_NOFILE, &rlp) < 0) {
+        JNU_ThrowIOExceptionWithLastError(env, "getrlimit failed");
+        return -1;
+    }
+    if (rlp.rlim_max == RLIM_INFINITY ||
+        rlp.rlim_max > (rlim_t)java_lang_Integer_MAX_VALUE) {
+        return java_lang_Integer_MAX_VALUE;
+    } else {
+        return (jint)rlp.rlim_max;
+    }
+}
+```
+
+即当前进程允许打开的最大fd和1024中的最小值，即最大我们一口气可以select出1024个事件。
+
+#### EpollSelectorImpl::processUpdateQueue
+
+这个方法并不会直接被我们调用，在jdk11中对于register操作实际上投递到一个`updateKeys`队列中就返回了，epoll_ctl并不是在这里调用的。而是在真正select操作前会排空这个队列（调用processUpdateQueue方法）里面的SelectionKey，看看注册的事件是不是有更改，有更改就会调用Epoll::ctl来注册信息。
+
+在此之前我们先认识一下SelectionKeyImpl中的两个字段
+
+```java
+private volatile int interestOps;
+private int registeredEvents;
+```
+
+当我们修改一个SelectionKey的注册事件时实际上是修改的interestOps
+
+而registeredEvents你可以理解为上一次感兴趣的事件(初始为0)
+
+然后我们将这些概念连接在一起，直接来看一段核心代码。
+
+~~代码排版炸了，换个图片吧~~
+
+![1654267148632](assets/1654267148632.png)
+
+若**新**感兴趣事件对应code为0那就是不关注它，即对应epoll_ctl文档的EPOLL_CTL_DEL参数
+
+若**新**感兴趣事件对应code**不**为0且**上一次**感兴趣事件对应code为0，即意味着没有被epoll管理（可能是因为获取到这个fd，也可能是上一个那个情况，被移除监听了），这个时候就加入到epoll内
+
+若**新**感兴趣事件对应code**不**为0,且**上一次**感兴趣事件对应code也**不**为0，说明在池内需要修改监听的事件，比如说我之前注册了读事件和写事件，写事件触发，我全写完了需要写的数据，需要取消挂载写事件，这种情况就走这个分支。
+
+#### EpollSelectorImpl::doSelect
+
+我们调用selector::select最终就会走到这个方法里面
+
+还是老样子直接看核心代码
+
+![1654268213271](assets/1654268213271.png)
+
+很简单嘛和epoll_wait签名一致
+
+```c
+int epoll_wait(int epfd, struct epoll_event *events,
+                      int maxevents, int timeout)
+```
+
+pollArrayAddress就是我们在构造器里面申请的那一段堆外内存
+
+#### EpollSelectorImpl::processEvents
+
+这个方法呢就是epoll_wait之后调用的方法用于将epoll_event转换为SelectionKey的状态。我们直接来看核心代码
+
+```java
+long event = EPoll.getEvent(pollArrayAddress, i);
+//根据偏移量算触发事件的fd的值
+int fd = EPoll.getDescriptor(event);
+//fd就是pipe读端和实际需要监听的无关 过滤掉
+if (fd == fd0) {
+    interrupted = true;
+} else {
+    SelectionKeyImpl ski = fdToKey.get(fd);
+    //就是建立了一个fd->selectionKey的映射，epoll会告知我们触发的是哪个fd，然我们就可以找到对应的selectionKey
+    if (ski != null) {
+        //获取实际上注册到epoll的事件 值
+        int rOps = EPoll.getEvents(event);
+        //这个就是将epoll对应的事件值转换为SelectionKey对应的值
+        //这两者是有区别的，后面会讲
+        numKeysUpdated += processReadyEvents(rOps, ski, action);
+    }
+}
+// 对应event结构体
+typedef union epoll_data { 
+     void    *ptr;          
+     int      fd;           
+     uint32_t u32;          
+     uint64_t u64;          
+ } epoll_data_t;            
+                            
+ struct epoll_event {       
+     uint32_t     events;   
+     epoll_data_t data;     
+ };                         
+```
+
+#### SelectionKey和Epoll的interestOps差异是怎么解决的?
+
+最常见的给Epoll注册的事件是POLLIN，其中有连接可以接收和socket可以读都是触发这个事件，那么java是怎么处理，将其分开来的？
+
+核心就是上面提到的processReadyEvents方法，其会转发到对应fd关联的SelectionKey，由这个SelectKey来**翻译**epoll的事件到SelectionKey中
+
+而SelectKey又关联了其对应的channel，真正的翻译就会委托到`channel::translateAndUpdateReadyOps`中，由不同的channel实现来选择如何更新SelectKey的值。很明显ServerSocketChannel和SocketChannel不是一个类，它们的实现也不同。下面给出两者关于EPOLLIN的不同翻译的核心代码
+
+```java
+//ServerSocketChannelImpl::translateReadyOps(int ops, int initialOps, SelectionKeyImpl ski)
+if (((ops & Net.POLLIN) != 0) &&
+    ((intOps & SelectionKey.OP_ACCEPT) != 0))
+        newOps |= SelectionKey.OP_ACCEPT;
+ski.nioReadyOps(newOps);
+
+//SocketChannelImpl::translateReadyOps(int ops, int initialOps, SelectionKeyImpl ski)
+if (((ops & Net.POLLIN) != 0) &&
+    ((intOps & SelectionKey.OP_READ) != 0) && connected)
+    newOps |= SelectionKey.OP_READ;
+```
+
+一目了然就是这样分开的——利用类的重写机制
+
+你会发现SocketChannelImpl对应的实现里面翻译POLLIN内有个很有趣的判断
+
+`connected`,为什么会有这个？
+
+实际上由于Net.POLLCONN和Net.POLLOUT在实现上面其实是一个值都是POLLOUT（来自于poll.h）,为了判别Connect事件和Write事件才做的，我们来看一段代码
+
+```java
+////SocketChannelImpl::translateReadyOps(int ops, int initialOps, SelectionKeyImpl ski)
+if (((ops & Net.POLLCONN) != 0) &&
+    ((intOps & SelectionKey.OP_CONNECT) != 0) && isConnectionPending())
+    newOps |= SelectionKey.OP_CONNECT;
+if (((ops & Net.POLLOUT) != 0) &&
+    ((intOps & SelectionKey.OP_WRITE) != 0) && connected)
+    newOps |= SelectionKey.OP_WRITE;
+```
+
+### 私货时间——loom是怎么利用Selector的？
+
+以ServerSocket::accept为例子：
+
+最后会转发到NioSocketImpl::accept(SocketImpl si)上面
+
+```java
+try {
+    int n = 0;
+    //这个fd实际上指的就是监听到端口的服务器fd
+    FileDescriptor fd = beginAccept();
+    try {
+        //类似于serversocketChannel.confgureBlocking(false)
+        configureNonBlockingIfNeeded(fd, remainingNanos > 0);
+        if (remainingNanos > 0) {
+            // accept with timeout
+            n = timedAccept(fd, newfd, isaa, remainingNanos);
+        } else {
+            // accept, no timeout
+            n = Net.accept(fd, newfd, isaa);
+            while (IOStatus.okayToRetry(n) && isOpen()) {
+                //核心在这里：若此时并没有立刻取到连接 就挂起当前线程
+                park(fd, Net.POLLIN);
+                n = Net.accept(fd, newfd, isaa);
+            }
+        }
+    } finally {
+        endAccept(n > 0);
+        assert IOStatus.check(n);
+    }
+} finally {
+    acceptLock.unlock();
+}
+
+private void park(FileDescriptor fd, int event, long nanos) throws IOException {
+    Thread t = Thread.currentThread();
+    if (t.isVirtual()) {
+        Poller.poll(fdVal(fd), event, nanos, this::isOpen);
+        if (t.isInterrupted()) {
+            throw new InterruptedIOException();
+        }
+    } //省略
+}
+public static void poll(int fdVal, int event, long nanos, BooleanSupplier supplier)
+    throws IOException
+{
+    assert nanos >= 0L;
+    if (event == Net.POLLIN) {
+        readPoller(fdVal).poll(fdVal, nanos, supplier);
+    } //省略
+}
+```
+
+简单来说 就是将当前的fd与线程用一个Map关联起来，然后在交由一个特殊的读轮询器线程，在其selector上面注册。当这个线程select到对应的fd时再通过Lockpark.unpark对应的虚拟线程让其重新加入调度。
+
+也就是说实际上我们原来需要写的selector交由jdk实现了，这样阻塞式的socket api也可以获得到非阻塞的性能了
