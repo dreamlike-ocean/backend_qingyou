@@ -104,7 +104,7 @@ public void sendfile(FileChannel fileChannel,SocketChannel socketChannel) throws
 }
 ```
 
-当我们需要在网络中传输一个文件时，为了避免CPU拷贝就可以使用这个方法（在之后的nio网络编程章节会进行补充）
+当我们需要在网络中传输一个文件时，为了避免CPU拷贝就可以使用这个方法
 
 其内部实现依赖于操作系统对zero copy技术的支持。在unix操作系统和各种linux的版本中，这种功能最终是通过sendfile()系统调用实现。
 
@@ -212,11 +212,11 @@ Windows：
 
 简单来说就是epoll_create创造一个epoll实例，epoll_ctl将fd纳入其管理（比如说挂载事件），epoll_wait等待触发一个事件。我们经常说java只是一层很薄的系统调用封装，从这里就可以窥见端倪。
 
-我们先不看实现，思考一下这三个api可能是在哪调用的？epoll_ctl->selector.<init> ，epoll_ctl->socketChannel.register,epoll_wait->select.select
+我们先不看实现，思考一下这三个api可能是在哪调用的？epoll_ctl->selector::new ，epoll_ctl->socketChannel::register,epoll_wait->select::select
 
 然后再看看代码验证一下
 
-#### EpollSelectorImpl::<init>
+#### EpollSelectorImpl::new
 
 ```java
 EPollSelectorImpl(SelectorProvider sp) throws IOException {
