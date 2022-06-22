@@ -454,3 +454,7 @@ public static void poll(int fdVal, int event, long nanos, BooleanSupplier suppli
 简单来说 就是将当前的fd与线程用一个Map关联起来，然后在交由一个特殊的读轮询器线程，在其selector上面注册。当这个线程select到对应的fd时再通过Lockpark.unpark对应的虚拟线程让其重新加入调度。
 
 也就是说实际上我们原来需要写的selector交由jdk实现了，这样阻塞式的socket api也可以获得到非阻塞的性能了
+
+解析视频在这里：
+
+[loom的java层面的实现](https://www.bilibili.com/video/BV1M34y157Qu)
