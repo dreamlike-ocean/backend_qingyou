@@ -4,7 +4,7 @@
 >
 > 相关的demo代码请看
 >
-> [dreamlike-ocean/qingyou_backend_code](https://github.com/dreamlike-ocean/backend_qingyou_code)
+> [dreamlike-ocean/qingyou_backend_code](https://github.com/dreamlike-ocean/backend_qingyou_code/tree/master/mybatis/src/main/java/top/dreamlike/qingyou/get_start)
 
 写在最前面的话：
 

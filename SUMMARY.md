@@ -30,6 +30,7 @@
 ## web开发
 
 - [mybatis](mybatis/get-start.md)
+  - [select](mybatis/select.md)
 
 ## MySQL
 
