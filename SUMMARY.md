@@ -20,7 +20,13 @@
 * [java socket api及其native实现](java基础/socket.md)
 * [拓展内容](java基础/拓展内容.md)
 
+## jvm
+
+- [概述](jvm/JVM概述)
+- [常量池](jvm/常量池)
+
 ## 构建工具
+
 * [Maven](构建工具/maven_get_start.md)
   * [依赖](构建工具/maven_dependencies.md) 
   * [仓库](构建工具/maven_repositories.md)
