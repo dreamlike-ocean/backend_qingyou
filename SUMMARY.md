@@ -41,6 +41,7 @@
 ## MySQL
 
   * [MySQL基础](MySQL/MySQL基础.md)
+  * [MySQL高级](MySQL/MySQL高级.md)
 
 ## Redis
 * [Redis](redis/Redis%E7%AC%94%E8%AE%B0.md)
