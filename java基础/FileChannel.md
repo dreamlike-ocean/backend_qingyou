@@ -89,6 +89,8 @@ write(file_fd, tmp_buf, len);
 
 同理write原语 java heap -> c heap -> kneral
 
+具体请参考[复制和固定 - IBM 文档](https://www.ibm.com/docs/zh/sdk-java-technology/7?topic=jnij-copying-pinning-1)
+
 ### directbuffer
 
 如果我们能提供一个长时间有效的，不受GC管理的地址 就可以做到和C语言调用一样的效果了
@@ -146,16 +148,6 @@ File file = new File("temp.txt");
 
 请注意transferTo的第三个参数实际上是`WritableByteChannel` 其中`SocketChannel`也是这个类的子类
 
-当我们需要在网络中传输一个文件时，为了避免CPU拷贝就可以使用这个方法（在之后的nio网络编程章节会进行补充）
-
-其内部实现依赖于操作系统对zero copy技术的支持。在unix操作系统和各种linux的版本中，这种功能最终是通过sendfile()系统调用实现
-
-在内核为2.4或者以上版本的linux系统上，socket缓冲区描述符将被用来满足这个需求。这个方式不仅减少了内核用户态间的切换，而且也省去了那次需要cpu参与的复制过程。 从用户角度来看依旧是调用transferTo()方法，但是其本质发生了变化：
-
-1. 调用transferTo方法后数据被DMA从文件复制到了内核的一个缓冲区中。
-2. 数据不再被复制到socket关联的缓冲区中了，仅仅是将一个描述符（包含了数据的位置和长度等信息）追加到socket关联的缓冲区中。DMA直接将内核中的缓冲区中的数据传输给协议引擎，消除了仅剩的一次需要cpu周期的数据复制。
-3. ![1650621923358](assets/1650621923358.png)
-
 #### 刷新到硬盘和page cache
 
 ```java
@@ -208,4 +200,4 @@ java提供的filechannel实际上就是提供了一套对应到glibc IO原语的
 
 本文仍有很多不足之处，毕竟unix编程花了半本书来讲述这些系统调用的实现和使用，以及坑。请读者自行进行扩展学习操作系统等相关知识。
 
-**若有时间请一定要用C试试这些IO原语加强理解能力**
+**若有时间请一定要用C试试这些IO原语 加强理解**
