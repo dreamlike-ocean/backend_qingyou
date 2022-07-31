@@ -24,6 +24,7 @@
 
 - [概述](jvm/JVM概述)
 - [常量池](jvm/常量池)
+- [JVM方法调用(一)](jvm/JVM方法调用(一).md)
 
 ## 构建工具
 
@@ -64,3 +65,5 @@
   * [State of Loom - Part 2](/dreamlike的私货/state_of_loom_part2.md)
   * [Spring的Loom化改造](dreamlike的私货/Spring的loom化改造.md)
   * [loom的实现](dreamlike的私货/loom的实现.md)
+  * [响应式的锁](dreamlike的私货/响应式的锁)
+  * [为什么jvm需要有栈协程](dreamlike的私货/为什么jvm需要有栈协程.md)

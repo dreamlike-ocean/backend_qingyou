@@ -1,4 +1,6 @@
-Java是一种技术，由四方面组成：Java编程语言、Java类文件格式、Java虚拟机和Java应用程序接口(Java API)![java-part](assets/java-part.png)
+Java是一种技术，由四方面组成：Java编程语言、Java类文件格式、Java虚拟机和Java应用程序接口(Java API)
+
+<img src="assets/java-part.png" title="" alt="java-part" width="521">
 
 在编译环境中，使用Java语言编写java文件，然后编译为.class字节码文件。到了Java平台运行环境中，字节码被装入内存后进入JVM虚拟机，它就会被解释器解释执行或被即时代码编译器(JIT)有选择的转换成机器代码(缓存在系统中)运行。JVM通过移植接口在具体的平台和操作系统上实现，使程序与操作系统和硬件无关，在JVM上方的则是Java的基本类库和扩展类库以及它们的API，最上方就是我们用Java API编写的应用程序，达到与平台无关性，虚拟机为我们做了将中间语言(字节码指令)进行翻译和执行的工作![jvm](assets/jvm.jpg)
 
@@ -112,7 +114,7 @@ private:
         Klass* _klass;
         narrowKlass _compressed_klass;
     } _metadata;
-	// ...
+    // ...
 }
 ```
 
@@ -144,19 +146,19 @@ private:
 
 ```
 public class Test {
-	public int a = 3;
-	static Integer b = 6;
-	private String c = "test";
-	
-	public static void main(String[] args) {
-		Test test = new Test();
-		test.a = 8;
-		b = 9;
-	}
-	
-	private void test() {
-		this.a = 4;
-	}
+    public int a = 3;
+    static Integer b = 6;
+    private String c = "test";
+
+    public static void main(String[] args) {
+        Test test = new Test();
+        test.a = 8;
+        b = 9;
+    }
+
+    private void test() {
+        this.a = 4;
+    }
 }
 ```
 
@@ -290,17 +292,17 @@ SourceFile: "Test.java"
 常量池不同元素的结构与类型不同，JVM定义了**元素类型**，并针对类型进行专门的解析。例如CONSTANT_Class_info(7:表示类或接口)、CONSTANT_Fieldref_info(9:字段信息表)、CONSTANT_Methodref_info(10:方法)、CONSTANT_String_info(8:java.lang.String 类型的常量对象)、CONSTANT_MethodHandle_info(15:方法句柄表)等等，具体可以在网上找到定义，不同元素类型的结构比如：
 
 ```
-// CONSTANT_Class_info	表示类或接口
+// CONSTANT_Class_info    表示类或接口
 CONSTANT_Class_info {
-    u1 tag;	// 7
-    u2 name_index;	// 指向全限定名常量项的索引
+    u1 tag;    // 7
+    u2 name_index;    // 指向全限定名常量项的索引
 }
 
 // CONSTANT_Fieldref_info
 CONSTANT_Fieldref_info {
-    u1 tag;	// 9
-    u2 class_index;	// 指向声明字段的类或接口描述符 CONSTANT_Class_info 的索引项
-    u2 name_and_type_index;	// 指向字段描述符 CONSTANT_NameAndType_info 的索引项
+    u1 tag;    // 9
+    u2 class_index;    // 指向声明字段的类或接口描述符 CONSTANT_Class_info 的索引项
+    u2 name_and_type_index;    // 指向字段描述符 CONSTANT_NameAndType_info 的索引项
 }
 ```
 
@@ -326,11 +328,11 @@ fields结构长度不确定，不同的变量类型所占的长度是不同的�
 
 ```
 field_info {
-    u2 access_flags;	// 标识变量访问标识，值是可选的：public、private、protected、static、final、volatile、transient、是否编译器自动产生、是否为enum
-    u2 name_index;	// 变量的简单名称引用，其值指向常量池的索引
-	u2 descriptor_index;	// 变量的类型信息引用，其值指向常量池的索引
-	u2 attributes_count;	// 属性数量
-	attribute_info attributes[attributes_count];
+    u2 access_flags;    // 标识变量访问标识，值是可选的：public、private、protected、static、final、volatile、transient、是否编译器自动产生、是否为enum
+    u2 name_index;    // 变量的简单名称引用，其值指向常量池的索引
+    u2 descriptor_index;    // 变量的类型信息引用，其值指向常量池的索引
+    u2 attributes_count;    // 属性数量
+    attribute_info attributes[attributes_count];
 }
 ```
 
