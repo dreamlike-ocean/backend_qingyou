@@ -41,7 +41,11 @@
 ## MySQL
 
   * [MySQL基础](MySQL/MySQL基础.md)
-  * [MySQL高级](MySQL/MySQL高级.md)
+  * [储存引擎与索引](MySQL/MySQL高级-1存储引擎与索引.md)
+  * [索引的使用和优化](MySQL/MySQL高级-2索引的使用和优化.md)
+  * [事务和锁](MySQL/MySQL高级-3事务和锁.md)
+  * [MVCC和日志](MySQL/MySQL高级-4MVCC和日志.md)
+  * [总集](MySQL/MySQL高级-总集.md)
 
 ## Redis
 * [Redis](redis/Redis%E7%AC%94%E8%AE%B0.md)
