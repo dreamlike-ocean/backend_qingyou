@@ -863,7 +863,7 @@ ICP 默认开启，也可以用 `set optimizer_switch='index_condition_pushdown=
 
 4. 【强制】库名禁止使用关键字（如type,order等）。
 
-5. 【强制】创建数据库时必须`显式指定字符集`，并且字符集只能是utf8mb4。创建数据库SQL举例:CREATE DATABASE crm_fund `DEFAULT CHARACTER SET 'utf8'`; 
+5. 【强制】创建数据库时必须`显式指定字符集`，并且字符集只能是utf8mb4。创建数据库SQL举例:CREATE DATABASE crm_fund `DEFAULT CHARACTER SET 'utf8mb4'`; 
 
 6. 【建议】对于程序连接数据库账号，遵循`权限最小原则`。使用数据库账号只能在一个DB下使用，不准跨库。程序使用的账号`原则上不准有drop权限`。 
 
@@ -922,7 +922,7 @@ CREATE TABLE user_info (
     UNIQUE KEY `uniq_user_id` (`user_id`), 
     KEY `idx_username`(`username`), 
     KEY `idx_create_time_status`(`create_time`,`user_review_status`) 
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='网站用户基本信息'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='网站用户基本信息'
 ```
 
 17. 【建议】创建表时，可以使用可视化工具。这样可以确保表、字段相关的约定都能设置上。实际上，我们通常很少自己写 DDL 语句，可以使用一些可视化工具来创建和操作数据库和数据表。可视化工具除了方便，还能直接帮我们将数据库的结构定义转化成 SQL 语言，方便数据库和数据表结构的导出和导入。
