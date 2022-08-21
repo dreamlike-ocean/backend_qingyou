@@ -67,3 +67,4 @@
   * [loom的实现](dreamlike的私货/loom的实现.md)
   * [响应式的锁](dreamlike的私货/响应式的锁)
   * [为什么jvm需要有栈协程](dreamlike的私货/为什么jvm需要有栈协程.md)
+  * [【翻译】为什么现代的jvm仍然偏爱安全点](dreamlike的私货/【翻译】为什么现代的JVM分析器仍然偏爱安全点？.md)
