@@ -112,7 +112,7 @@ public static CallSite makeConcatWithConstants(MethodHandles.Lookup lookup,
       long t1 = StringConcatHelper.mix(0, "arg0:"); //t1=5
       long t2 = StringConcatHelper.mix(t1, ",arg1:");//t2=11
       
-      //这个是StringConcatHelper::mix(long lengthCoder, String value)
+      //这个是StringConcatHelper::mix(long lengthCoder, int value)
       long t3 =  StringConcatHelper.mix(t2, bar) //t3 = 12
       long t4 = StringConcatHelper.mix(t4, os) //t4 = 37
   
