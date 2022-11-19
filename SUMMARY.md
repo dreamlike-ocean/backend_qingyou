@@ -7,6 +7,8 @@
 * [反射和注解](java基础/反射和注解.md)
 * [泛型和容器类](java基础/泛型和容器类.md)
 * [内部类和lambda](java基础/内部类和lambda.md)
+  * [invokedynamic与字符串拼接](java基础/stringConcatViaInvokeDynamic.md) 
+
 * [IO流](java基础/io流.md)
 * [FileChannel](java基础/FileChannel.md)
 * [ByteBuffer和native内存](java基础/ByteBuffer和native内存.md)
@@ -23,8 +25,8 @@
 
 ## jvm
 
-- [概述](jvm/JVM概述)
-- [常量池](jvm/常量池)
+- [概述](jvm/JVM概述.md)
+- [常量池](jvm/常量池.md)
 - [JVM方法调用(一)](jvm/JVM方法调用(一).md)
 
 ## GIT
