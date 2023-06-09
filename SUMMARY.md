@@ -45,6 +45,9 @@
 
 - [mybatis](mybatis/get-start.md)
   - [select](mybatis/select.md)
+  - [insert update delete](mybatis/insert%2Cupdate%2Cdelete.md)
+  - [动态sql标签](mybatis/%E9%82%A3%E4%BA%9Bxml%E6%A8%A1%E6%9D%BF%E6%A0%87%E7%AD%BE.md)
+  - [配置杂谈](mybatis/%E9%85%8D%E7%BD%AE%E6%9D%82%E8%B0%88.md)
 
 ## MySQL
 
@@ -73,13 +76,14 @@
 ## dreamlike的私货
 
 
-* [Loom](https://openjdk.org/projects/loom/)
+* Loom
+  * [openjdk loom](https://openjdk.org/projects/loom/) 
   * [fiber and continuation](dreamlike的私货/Project%20Loom%20Java虚拟机的纤程和计算续体.md)
   * [State of Loom - Part 1](/dreamlike的私货/state_of_loom_part1.md)
   * [State of Loom - Part 2](/dreamlike的私货/state_of_loom_part2.md)
   * [Spring的Loom化改造](dreamlike的私货/Spring的loom化改造.md)
   * [loom的实现](dreamlike的私货/loom的实现.md)
   * [为什么jvm需要有栈协程](dreamlike的私货/为什么jvm需要有栈协程.md) 
-* [响应式的锁](dreamlike的私货/响应式的锁)
+* [响应式的锁](dreamlike的私货/%E5%93%8D%E5%BA%94%E5%BC%8F%E7%9A%84%E9%94%81.md)
 * [[翻译]为什么现代的jvm仍然偏爱安全点](dreamlike的私货/【翻译】为什么现代的JVM分析器仍然偏爱安全点？.md)
 * [io_uring介绍](dreamlike的私货/io_uring.md)
