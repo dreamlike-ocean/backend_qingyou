@@ -199,6 +199,7 @@ template <typename T> struct AsyncResult {
   }
 
   void on_completed(std::function<void(Result<T>)> &&func) {
+      auto scope = std::lock_guard(queue_lock);
     if (done) {
       // result 已经有值
       auto value = res;
