@@ -87,3 +87,7 @@
 * [响应式的锁](dreamlike的私货/%E5%93%8D%E5%BA%94%E5%BC%8F%E7%9A%84%E9%94%81.md)
 * [[翻译]为什么现代的jvm仍然偏爱安全点](dreamlike的私货/【翻译】为什么现代的JVM分析器仍然偏爱安全点？.md)
 * [io_uring介绍](dreamlike的私货/io_uring.md)
+* CPP
+
+  * [C++20协程入门](dreamlike的私货/cpp_coroutine/first.md)
+  * [async scope和通用回调转协程](dreamlike的私货/cpp_coroutine/async_scope.md)
