@@ -302,13 +302,15 @@ return new Bindings(csb.build(), returnInMemory, argCalc.storageCalculator.nVect
 
 ![img](assets/make_method_stub.png)
 
-generate 没什么好讲的就是又做了一边调用约定的解析并生成对应的汇编代码（参考assembler_x86.cpp）并且计算了需要多大的stack size，并申请对应的栈帧空间
+generate 没什么好讲的就是又做了一边调用约定的解析并生成对应的汇编代码（参考assembler_x86.cpp）并且计算了需要多大的stack size，并申请对应的栈帧空间,具体可以参看SharedRuntime::java_calling_convention的实现，本质上就在生成java调用约定到当前ABI的转换，即代码里面提到ArgumentShuffle arg_shuffle(_signature, _num_args, _signature, _num_args, &in_conv, &out_conv, shuffle_reg); 这一句就是在将java侧的方法调用的传参方式重排成对应平台ABI的调用约定，由于编译后的高效代码非常接近于本机约定，所以无需过多重排
+
+![image-20231001012125342](assets/image-20231001012125342.png)
 
 将核心代码摘出来就是这么几句 先生成初始化寄存器语句再生成call指令语句 最后就是清理
 
 ```cpp
  __ block_comment("{ argument shuffle");
-
+//将java传参重排为当前平台的ABI传参约定
   arg_shuffle.generate(_masm, shuffle_reg, 0, _abi._shadow_space_bytes, locs);
 
   __ block_comment("} argument shuffle");
@@ -363,6 +365,10 @@ if (_needs_transition) {
 
 
 好了现在就是使用MethodHandle handle = JLIA.nativeMethodHandle(nep)转换为MethodHandle，首先先利用LambdaForm这个基础设施API生成对应的java层入口，再将这个入口和刚才生成的RuntimeStub连接起来，这样就完成了从java到native的桥接。
+
+这个LambdaForm生成的胶水代码如下：第一个var0实际的类型为NativeMethodHandle，本质上就是MethodHandl各种套娃
+
+![image-20231001015451988](assets/image-20231001015451988.png)
 
 这里涉及到MethodHandle::linkToNative的实现是个Intrinsic实现，就需要去找下具体实现，这里不再展开。
 
@@ -436,3 +442,36 @@ public final MethodHandle downcallHandle(MemorySegment symbol, FunctionDescripto
 ```
 
 感谢阅读 这里终于把一些简单的场景的向下调用梳理完毕了
+
+
+
+MethodHandle::linkToNative的实现
+
+这里参考MethodHandles::generate_method_handle_dispatch
+
+这里的意思是生成具体的桥接方式即linkToNative的行为，由于是static方法所以需要泛用型强且只需要初始化一次
+
+生成出来的代码实际上核心就两步
+
+- 将最后一个参数（NativeEntryPoint）放置在寄存器里面
+- 跳转到这个寄存器所在地址就是跳转到NativeEntryPoint开头
+
+```c++
+void MethodHandles::jump_to_native_invoker(MacroAssembler* _masm, Register nep_reg, Register temp_target) {
+  BLOCK_COMMENT("jump_to_native_invoker {");
+  assert_different_registers(nep_reg, temp_target);
+  assert(nep_reg != noreg, "required register");
+
+  // Load the invoker, as NEP -> .invoker
+  __ verify_oop(nep_reg);
+  __ access_load_at(T_ADDRESS, IN_HEAP, temp_target,
+                    Address(nep_reg, NONZERO(jdk_internal_foreign_abi_NativeEntryPoint::downcall_stub_address_offset_in_bytes())),
+                    noreg, noreg);
+
+  __ jmp(temp_target);
+  BLOCK_COMMENT("} jump_to_native_invoker");
+}
+
+```
+
+NativeEntryPoint所对应的位置即为之前手搓的那堆参数重排，对准ABI，调用对应函数以及各种清理工作的那个codebuffer
