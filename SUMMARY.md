@@ -91,3 +91,6 @@
 
   * [C++20协程入门](dreamlike的私货/cpp_coroutine/first.md)
   * [async scope和通用回调转协程](dreamlike的私货/cpp_coroutine/async_scope.md)
+* Panama FFI
+
+  * [Panama浅析](dreamlike的私货/Panama浅析.md)
