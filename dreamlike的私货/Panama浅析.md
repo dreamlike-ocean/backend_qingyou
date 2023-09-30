@@ -6,7 +6,7 @@
 
 JDK源码参考https://github.com/openjdk/jdk21
 
-笔者内核配置
+笔者OS
 
 Linux dreamlike-MS-7E01 6.2.0-33-generic #33-Ubuntu SMP PREEMPT_DYNAMIC Tue Sep  5 14:49:19 UTC 2023 x86_64 x86_64 x86_64 GNU/Linux
 
@@ -54,7 +54,7 @@ MEMORY从右到左依次压栈，保证首个参数在栈顶
 
 如果返回值的类是 MEMORY，则调用者为返回提供空间并把指向这块空间的指针值放在`%rdi`中传递，即作为第一个隐藏的参数，返回时 `%rax` 的值为在 `%rdi` 中传入的指针值
 
-![param_passing](/home/dreamlike/backend_qingyou/dreamlike的私货/assets/param_passing.png)
+![param_passing](assets/param_passing.png)
 
 补充个MEMORY传参的例子,这里的structParam会从下到上，从右向左依次压栈，c会放在第一个寄存器里面
 
@@ -232,7 +232,7 @@ linker.downcallHandle(
 
 在看之前可以发现一个很有意思的静态字段 这里的的描述跟我们之前记录的System V ABI完全一致
 
-![img](/home/dreamlike/backend_qingyou/dreamlike的私货/assets/static_field_abi.png)
+![img](assets/static_field_abi.png)
 
 具体代码请看CallArranger::getBindings，首先我们肯定是downcall,就是单纯的调用native层，其也不会反向来调用java层，进一步getBindings的作用是什么？其实就是按照FunctionDescriptor的描述来生成传参的约定比如说第一个参数用什么寄存器，以及取出返回值的约束。
 
@@ -242,7 +242,7 @@ linker.downcallHandle(
 
 还有一点对于csb.addArgumentBindings会将当前的参数的类型追加在预期要生成的签名后面，举个例子，当前为() long，这时开始处理第一个参数类型为int, add后就变成了（int）long
 
-![img](/home/dreamlike/backend_qingyou/dreamlike的私货/assets/binding.png)
+![img](assets/binding.png)
 
 - 返回值生成
 
@@ -287,18 +287,152 @@ return new Bindings(csb.build(), returnInMemory, argCalc.storageCalculator.nVect
 
 1. 需要计算需要额外分配的空间（因为其他架构存在需要copy的内容比如说aarch64的STRUCT_REFERENCE， 或者System V x86_64的MEMORY类型的返回值），这里writeSysCall不需要额外分配只需要走默认的俩返回值寄存器就要了
 2. 此时csb对应的MethodHandle为(long,int,MemorySegment,long)long，分别对应系统调用号，fd，写入的buffer,预期写入的长度，向量寄存器使用的个数
-3. 在上一步获取到的MethodHandle和InputBindings之前追加一个MemorySegment参数变成(MemorySegment,long,int,MemorySegment,long,long)long和下图所示，以代表当前是针对于哪个符号的调用![image-20230930020624913](/home/dreamlike/backend_qingyou/dreamlike的私货/assets/image-20230930020624913.png)
+3. 在上一步获取到的MethodHandle和InputBindings之前追加一个MemorySegment参数变成(MemorySegment,long,int,MemorySegment,long,long)long和下图所示，以代表当前是针对于哪个符号的调用![image-20230930020624913](assets/image-20230930020624913.png)
 4. 生成callerMethodType为上一步得到的Methodhandle, calleeMethodType为上一步MethodHandle去java化的结果，比如说MemorySegment为long，在这里是(long,long,int,long,long,long)long
 
 ##### 生成桥接
 
 这里主要看DownCallLinker::getBoundMethodHandle代码
 
-1. 使用静态方法NativeEntryPoint::make生成NativeEntryPoint，即函数入口
+首先使用静态方法NativeEntryPoint::make生成NativeEntryPoint，即函数入口
 
 这里最后调用到NativeEntryPoint::makeDowncallStub的native实现并返回Stub的地址，直接用NativeEntryPoint一包这个参数就进入下一步了，所以我们直接来看看makeDowncallStub的native实现
 
-1. 使用MethodHandle handle = JLIA.nativeMethodHandle(nep); 转换为MethodHandle
-2. 特化调用
-3. 添加SegmentAllocator之类的检测
+这里跳过一些java层的元数据描述转换为native层的元数据描述，转到实际生成桥接的代码可以看到就是两步生成和连接
 
+![img](assets/make_method_stub.png)
+
+generate 没什么好讲的就是又做了一边调用约定的解析并生成对应的汇编代码（参考assembler_x86.cpp）并且计算了需要多大的stack size，并申请对应的栈帧空间
+
+将核心代码摘出来就是这么几句 先生成初始化寄存器语句再生成call指令语句 最后就是清理
+
+```cpp
+ __ block_comment("{ argument shuffle");
+
+  arg_shuffle.generate(_masm, shuffle_reg, 0, _abi._shadow_space_bytes, locs);
+
+  __ block_comment("} argument shuffle");
+
+  __ call(as_Register(locs.get(StubLocations::TARGET_ADDRESS))); //这里就获取对应的函数地址call
+// 省略调用后处理操作 非linkerOptions.isTrivial()的一些操作比如说安全点轮询
+    __ leave(); // 恢复栈帧
+  __ ret(0);
+```
+
+这里后面代码还有个小彩蛋 关于linkerOptions.isTrivial()的，如果不加的话在native函数执行完毕后会多一些操作，比如说safepoint_poll，change thread state，栈溢出安全水位检测（类似于金丝雀），这就是为什么说接近于空函数的native调用用这个参数性能会更好的原因
+
+我把代码贴在这里有兴趣可以看看
+
+```cpp
+if (_needs_transition) {
+    __ block_comment("{ thread native2java");
+    __ restore_cpu_control_state_after_jni(rscratch1);
+
+    __ movl(Address(r15_thread, JavaThread::thread_state_offset()), _thread_in_native_trans);
+
+    // Force this write out before the read below
+    if (!UseSystemMemoryBarrier) {
+      __ membar(Assembler::Membar_mask_bits(
+              Assembler::LoadLoad | Assembler::LoadStore |
+              Assembler::StoreLoad | Assembler::StoreStore));
+    }
+
+    __ safepoint_poll(L_safepoint_poll_slow_path, r15_thread, true /* at_return */, false /* in_nmethod */);
+    __ cmpl(Address(r15_thread, JavaThread::suspend_flags_offset()), 0);
+    __ jcc(Assembler::notEqual, L_safepoint_poll_slow_path);
+
+    __ bind(L_after_safepoint_poll);
+
+    // change thread state
+    __ movl(Address(r15_thread, JavaThread::thread_state_offset()), _thread_in_Java);
+
+    __ block_comment("reguard stack check");
+    __ cmpl(Address(r15_thread, JavaThread::stack_guard_state_offset()), StackOverflow::stack_guard_yellow_reserved_disabled);
+    __ jcc(Assembler::equal, L_reguard);
+    __ bind(L_after_reguard);
+
+    __ reset_last_Java_frame(r15_thread, true);
+    __ block_comment("} thread native2java");
+  }
+```
+
+然后还有个有点重要的玩意值得一提errno的获取, 可以参考Linker.Option.captureCallState("error")的注释来看java侧如何使用的，对于这边的汇编生成则是，通过在call 目标native函数后插入一个DowncallLinker::capture_state的调用来保存errorno的值到一个位置。
+
+接下来就是把生成出来的这些汇编(CodeBuffer)，生成RuntimeStub来正式跟jvm的函数调用体系打通这里不再赘述，可以对比理解为你的C1 jit优化了一个函数然后替换原来的java函数入口到新的代码上。
+
+
+
+好了现在就是使用MethodHandle handle = JLIA.nativeMethodHandle(nep)转换为MethodHandle，首先先利用LambdaForm这个基础设施API生成对应的java层入口，再将这个入口和刚才生成的RuntimeStub连接起来，这样就完成了从java到native的桥接。
+
+这里涉及到MethodHandle::linkToNative的实现是个Intrinsic实现，就需要去找下具体实现，这里不再展开。
+
+![image-20230930190356099](assets/image-20230930190356099.png)
+
+然后就是开始调用BindingSpecializer.specializeDowncall来进行特化操作，说是特化其实就是把上面生成出来的NativeMethodhandle微调成常规的MethodHandle，这里可以添加`-Djdk.internal.foreign.abi.Specializer.DUMP_CLASSES_DIR=generaterHelper`这样一个参数dump出来它生成了什么样子的类，这里主要的操作就生成了一个包含签名为`public static long invoke(SegmentAllocator var0, MemorySegment var1, long var2, int var4, MemorySegment var5, long var6, long var8) `的类，以包装下原来的NativeMethodHandle对应的参数。这里时候拿到的Methodhandle就是代表当前这个生成出来类的invoke函数
+
+![image-20230930190430837](assets/image-20230930190430837.png)
+
+这个生成出来的可读性很差，我总结了这个wrapper其主要作用是两点
+
+1. 保证当前MemorySegment对应的Session是有效的，以ConfinedSession为例子会增加一个引用计数，防止在调用native函数时因为Session失效导致MemorySegment被释放从而产生UB
+2.  SharedUtils.unboxSegment(var1)这个则是帮助检测对应MemorySegment是否为Heap地址，为了native调用的正确性是不允许MemorySegment为HeapMemorySegment的
+
+接下来则又是一堆封装检测，利用foldArguments 拦截下第二个入参（就是MemorySegement对应的函数地址），对其进行校验后再执行上面的封装。
+
+```java
+ handle = foldArguments(handle, 1, SharedUtils.MH_CHECK_SYMBOL);
+
+//等价于
+public static long invoke(SegmentAllocator var0, MemorySegment var1, long var2, int var4, MemorySegment var5, long var6, long var8) {
+    checkSymbol(var1);
+    downcallStub.invoke(SegmentAllocator var0, MemorySegment var1, long var2, int var4, MemorySegment var5, long var6, long var8);
+}
+
+
+//MH_CHECK_SYMBOL对应为
+   public static void checkSymbol(MemorySegment symbol) {
+        Objects.requireNonNull(symbol);
+        if (symbol.equals(MemorySegment.NULL))
+            throw new IllegalArgumentException("Symbol is NULL: " + symbol);
+    }
+```
+
+添加检测之后会再次将第一个参数和第二个参数交换位置（注意这里不影响上一部fold的检测效果）
+
+以上完成之后就开始初步裁剪得到的MethodHandle(MemorySegment,SegmentAllocator,long,int,MemorySegment,long,long)long
+
+第一步裁剪最后一个参数，这个参数代表了用来多少向量寄存器由于此时以及分析完毕，直接绑定一个常量即可
+
+```java
+ handle = MethodHandles.insertArguments(handle, handle.type().parameterCount() - 1, bindings.nVectorArgs);
+
+```
+
+如果返回值类型是MEMORY则还要摘除第一个参数等操作，由于我们的例子返回值不是MEMORY类型这里就不再展具体参考SharedUtils.adaptDowncallForIMR
+
+到此CallArranger::arrangeDowncall的整体流程完成，生成出来的MethodHandle(MemorySegment,SegmentAllocator,long,int,MemorySegment,long)long
+
+下一步则是开始让他和我们目标的native函数的签名一致，首先是SharedUtils::maybeInsertAllocator,很显然我们的返回值不是一个StructLayout或者 UnionLayout因此不需要额外这个参数传入，直接用MethodHandles::insertArguments把SegmentAllocator抹掉，这样得到的MethodHandle就为MethodHandle(MemorySegment,long,int,MemorySegment,long,long)long
+
+```java
+    public static MethodHandle maybeInsertAllocator(FunctionDescriptor descriptor, MethodHandle handle) {
+        if (descriptor.returnLayout().isEmpty() || !(descriptor.returnLayout().get() instanceof GroupLayout)) {
+            // not returning segment, just insert a throwing allocator
+            handle = insertArguments(handle, 1, THROWING_ALLOCATOR);
+        }
+        return handle;
+    }
+
+```
+
+最后一步则是 把函数地址bind进去，这样得到的MethodHandle就为MethodHandle(long,int,MemorySegment,long,long)long了 完美符合我们的syscall的方法签名了
+
+```java
+public final MethodHandle downcallHandle(MemorySegment symbol, FunctionDescriptor function, Option... options) {
+        Reflection.ensureNativeAccess(Reflection.getCallerClass(), Linker.class, "downcallHandle");
+        SharedUtils.checkSymbol(symbol);
+        return downcallHandle0(function, options).bindTo(symbol);
+    }
+```
+
+感谢阅读 这里终于把一些简单的场景的向下调用梳理完毕了
