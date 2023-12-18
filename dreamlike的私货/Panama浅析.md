@@ -321,6 +321,10 @@ generate 没什么好讲的就是又做了一边调用约定的解析并生成�
   __ ret(0);
 ```
 
+这里call可以简单讲讲，locs.get(StubLocations::TARGET_ADDRESS))是个啥寄存器，在systemv上是r10，即储存第一个参数的寄存器，我们最后搓成来的methodhandle bindto第一个参数正好就是方法地址。
+
+
+
 这里后面代码还有个小彩蛋 关于linkerOptions.isTrivial()的，如果不加的话在native函数执行完毕后会多一些操作，比如说safepoint_poll，change thread state，栈溢出安全水位检测（类似于金丝雀），这就是为什么说接近于空函数的native调用用这个参数性能会更好的原因
 
 我把代码贴在这里有兴趣可以看看
@@ -366,7 +370,7 @@ if (_needs_transition) {
 
 好了现在就是使用MethodHandle handle = JLIA.nativeMethodHandle(nep)转换为MethodHandle，首先先利用LambdaForm这个基础设施API生成对应的java层入口，再将这个入口和刚才生成的RuntimeStub连接起来，这样就完成了从java到native的桥接。
 
-这个LambdaForm生成的胶水代码如下：第一个var0实际的类型为NativeMethodHandle，本质上就是MethodHandl各种套娃
+这个LambdaForm生成的胶水代码如下：第一个var0实际的类型为NativeMethodHandle，本质上就是MethodHandle各种套娃
 
 ![image-20231001015451988](assets/image-20231001015451988.png)
 
@@ -381,7 +385,7 @@ if (_needs_transition) {
 这个生成出来的可读性很差，我总结了这个wrapper其主要作用是两点
 
 1. 保证当前MemorySegment对应的Session是有效的，以ConfinedSession为例子会增加一个引用计数，防止在调用native函数时因为Session失效导致MemorySegment被释放从而产生UB
-2.  SharedUtils.unboxSegment(var1)这个则是帮助检测对应MemorySegment是否为Heap地址，为了native调用的正确性是不允许MemorySegment为HeapMemorySegment的
+2.  SharedUtils.unboxSegment(var1)这个则是帮助检测对应MemorySegment是否为Heap地址，为了native调用的正确性是不允许MemorySegment为HeapMemorySegment的，然后再将其转换为long,即对MemorySegment拆包为指针类型
 
 接下来则又是一堆封装检测，利用foldArguments 拦截下第二个入参（就是MemorySegement对应的函数地址），对其进行校验后再执行上面的封装。
 
@@ -403,7 +407,7 @@ public static long invoke(SegmentAllocator var0, MemorySegment var1, long var2, 
     }
 ```
 
-添加检测之后会再次将第一个参数和第二个参数交换位置（注意这里不影响上一部fold的检测效果）
+添加检测之后会再次将第一个参数和第二个参数交换位置（注意这里不影响上一步fold的检测效果）
 
 以上完成之后就开始初步裁剪得到的MethodHandle(MemorySegment,SegmentAllocator,long,int,MemorySegment,long,long)long
 
