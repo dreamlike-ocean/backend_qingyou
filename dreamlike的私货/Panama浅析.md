@@ -321,7 +321,7 @@ generate 没什么好讲的就是又做了一边调用约定的解析并生成�
   __ ret(0);
 ```
 
-这里call可以简单讲讲，locs.get(StubLocations::TARGET_ADDRESS))是个啥寄存器，在systemv上是r10，即储存第一个参数的寄存器，我们最后搓成来的methodhandle bindto第一个参数正好就是方法地址。
+这里call可以简单讲讲，locs.get(StubLocations::TARGET_ADDRESS))是个啥寄存器，在systemv上是r10,这里跟linkToNative有点关系，最后会讲
 
 
 
@@ -457,7 +457,7 @@ MethodHandle::linkToNative的实现
 
 生成出来的代码实际上核心就两步
 
-- 将最后一个参数（NativeEntryPoint）放置在寄存器里面
+- 将最后一个参数（NativeEntryPoint）放置在寄存器里面，access_load_at这个很有趣，temp_target是rscratch1 在x86上就是r10寄存器,address(nep_reg, NONZERO(jdk_internal_foreign_abi_NativeEntryPoint::downcall_stub_address_offset_in_bytes()),这个呢就是找出来当前的NativeMethodHandle实例中NativeEntryPoint的地址，这样就在调用前把要之前生成的那一堆玩意的首地址找到了
 - 跳转到这个寄存器所在地址就是跳转到NativeEntryPoint开头
 
 ```c++
@@ -468,8 +468,8 @@ void MethodHandles::jump_to_native_invoker(MacroAssembler* _masm, Register nep_r
 
   // Load the invoker, as NEP -> .invoker
   __ verify_oop(nep_reg);
-  __ access_load_at(T_ADDRESS, IN_HEAP, temp_target,
-                    Address(nep_reg, NONZERO(jdk_internal_foreign_abi_NativeEntryPoint::downcall_stub_address_offset_in_bytes())),
+  __ access_load_at(T_ADDRESS, IN_HEAP, temp_target, /*这是target*/
+             /*这是src*/    Address(nep_reg, NONZERO(jdk_internal_foreign_abi_NativeEntryPoint::downcall_stub_address_offset_in_bytes())),
                     noreg, noreg);
 
   __ jmp(temp_target);
@@ -477,5 +477,7 @@ void MethodHandles::jump_to_native_invoker(MacroAssembler* _masm, Register nep_r
 }
 
 ```
+
+
 
 NativeEntryPoint所对应的位置即为之前手搓的那堆参数重排，对准ABI，调用对应函数以及各种清理工作的那个codebuffer
