@@ -94,3 +94,5 @@
 * Panama FFI
 
   * [Panama浅析](dreamlike的私货/Panama浅析.md)
+* java杂谈
+  * [失去了Unsafe内存操作之后该何去何从](dreamlike的私货/afterUnsafe.md)  
