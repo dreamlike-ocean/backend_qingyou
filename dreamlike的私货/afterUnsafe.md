@@ -118,6 +118,9 @@ private static VarHandle VH = ...
 ```
 
 ## 私货
+
+### JNI方案
+
 前面说了这么多其实都是为了私货部分，我之前写了个库——[手操VirtualThread](https://github.com/dreamlike-ocean/UnsafeVirtualThread)，就是把一些jdk内部的基建拿出来用，其中核心就是MethodHandle.Lookup中的那个静态字段`IMPL_LOOKUP`，其拥有无限的权限，不受任何限制调用任意的方法，哪怕是jdk内部的。但是由于Unsafe中offset相关方法的移除，我也不得不一边骂openjdk组一边寻找别的解决方案，让这个库继续跑下去。
 封锁到最后发现只有jni这一条路了。
 
@@ -135,3 +138,120 @@ JNIEXPORT jobject JNICALL Java_top_dreamlike_VirtualThreadUnsafe_getTrustedLookU
 但是这里还有个高悬的已经提交的[JEP草案](https://openjdk.org/jeps/8307341),准备默认关闭jni的加载，或许某一天我的`提供无需添加额外启动参数就可以使用VirtualThread带来的各种内部api的解决方案`这句话也会被我自己删掉。
 
 我很乐意见到jdk变得更安全，但是至少给我们这些有能力手操的人一点活路，如果官方举棋不定不知道该不该放出来API,也至少留个后门给社区发挥创造力。
+
+### Panama方案
+
+在Linux上加载多次同一个动态库本质是都是同一份内存，也就是说我们可以通过Panama API加载libjava和libjvm两个动态库的方法，再解析对应的符号地址直接在当前的进程中调用到JVM中的某些方法，～那么我们就可以在java用Panama提供的FFI API实现上面的等价JNI功能。
+
+想要做到这一点首先需要拿到JNIEnv *env这个小玩意，通过使用nm和readelf两个指令再搭配openjdk源码我们可以找到这样一个导出的符号来获取JNIENV
+符号可以参考
+
+```shell
+➜  cpp-code readelf -a /home/dreamlike/jdks/jdk-21.0.1/lib/libjava.so |grep "JNU_GetEnv"
+   383: 000000000001a110    26 FUNC    GLOBAL DEFAULT   12 JNU_GetEnv
+   633: 000000000001a110    26 FUNC    GLOBAL DEFAULT   12 JNU_GetEnv
+```
+
+对应符号的源码可以参考
+
+```c
+// 位于src/java.base/share/native/libjava/jni_util.c
+JNIEXPORT void * JNICALL
+JNU_GetEnv(JavaVM *vm, jint version)
+{
+    void *env;
+    (*vm)->GetEnv(vm, &env, version); // 这个的实现见src/hotspot/share/prims/jni.cpp的jni_GetEnv
+    return env;
+}
+```
+
+那么问题就转换为获取当前JVM对应的JavaVM*即可，熟悉jdk源码的读者应该知道源码中存在一个全局变量`main_vm`保存了当前的JavaVM实例，但是很可惜这个符号在符号表里面是隐藏的我们无法直接获取
+
+```txt
+➜  cpp-code readelf -a /home/dreamlike/jdks/jdk-21.0.1/lib/server/libjvm.so | grep "main_vm"
+ 42899: 00000000013e1fa0     8 OBJECT  LOCAL  HIDDEN    27 main_vm
+```
+
+但是不要紧这个符号作为重要的一个符号肯定有导出的方法给其他的Java核心动态库使用，所以我们可以找到一个导出的符号正好可以帮忙拿到这个`main_vm`的指针
+
+```shell
+➜  cpp-code readelf -a /home/dreamlike/jdks/jdk-21.0.1/lib/server/libjvm.so | grep "JNI_GetCreatedJavaVMs"
+ 63010: 0000000000977cc0    60 FUNC    GLOBAL DEFAULT   11 JNI_GetCreatedJavaVMs
+```
+
+这个源码参考
+
+```c
+//  位于src/hotspot/share/prims/jni.cpp
+_JNI_IMPORT_OR_EXPORT_ jint JNICALL JNI_GetCreatedJavaVMs(JavaVM **vm_buf, jsize bufLen, jsize *numVMs) {
+  HOTSPOT_JNI_GETCREATEDJAVAVMS_ENTRY((void **) vm_buf, bufLen, (uintptr_t *) numVMs);
+
+  if (vm_created == COMPLETE) {
+    if (numVMs != nullptr) *numVMs = 1;
+    if (bufLen > 0)     *vm_buf = (JavaVM *)(&main_vm);
+  } else {
+    if (numVMs != nullptr) *numVMs = 0;
+  }
+  HOTSPOT_JNI_GETCREATEDJAVAVMS_RETURN(JNI_OK);
+  return JNI_OK;
+}
+```
+
+这样我们就拿到了VM指针进而拿到了JNIENV
+
+代码可以参考
+
+``` java
+//省略动态库加载
+MemorySegment jniGetCreatedJavaVM_FP = SymbolLookup.loaderLookup()
+        .find("JNI_GetCreatedJavaVMs")
+        .get();
+MethodHandle JNI_GetCreatedJavaVM_MH = Linker.nativeLinker()
+        .downcallHandle(
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.ADDRESS)
+        )
+        .bindTo(jniGetCreatedJavaVM_FP);
+Arena global = Arena.global();
+MemorySegment vm = global.allocate(ValueLayout.ADDRESS);
+MemorySegment numVMs = global.allocate(ValueLayout.JAVA_INT, 0);
+int i = (int) JNI_GetCreatedJavaVM_MH.invokeExact(vm, 1, numVMs);
+mainVMPointer = vm.get(ValueLayout.ADDRESS, 0);
+```
+
+这样我们就拿到了全部想要的东西，在找这些东西的时候我们遇到了一个jni工具方法的c文件——`jni_util.c`，这里面有很多好玩的东西，比如说`JNU_CallMethodByName`可以允许我们调用任何方法。
+那么回到需求本身，我想要拿到MethodHandle.Lookup中的那个静态字段`IMPL_LOOKUP`怎么办？首先直接通过`JNU_GetStaticFieldByName`获取对应字段可以吗？显然不行，这里拿到的是一个jobject返回只是一个long值没有办法转换为Object对象，所以这里我们这里就可以转换一下思路，我用jni打开模块限制然后直接反射不就好了？
+
+我直接给出代码
+
+```java
+ long javaLangAccess = jniUtils.JNU_GetStaticFieldByName("jdk/internal/access/SharedSecrets", "javaLangAccess", "Ljdk/internal/access/JavaLangAccess;");
+ //获取静态字段的javaLangAccess的jobect
+ javaLangAccess = jniUtils.NewGlobalRef(javaLangAccess);
+ MethodHandle addExport = Linker.nativeLinker()
+         .downcallHandle(FunctionDescriptor.of(
+                 ValueLayout.ADDRESS,
+                 /*JNIEnv *env */ValueLayout.ADDRESS,
+                 /*jboolean *hasException*/ValueLayout.ADDRESS,
+                 /*  jobject obj **/ ValueLayout.ADDRESS,
+                 /*const char *name*/ ValueLayout.ADDRESS,
+                 /* const char *signature*/ ValueLayout.ADDRESS,
+                 /* jobject Module*/ ValueLayout.ADDRESS,
+                 /* jstring pkg*/ ValueLayout.ADDRESS
+         )).bindTo(JniUtils.JNU_CallMethodByNameFP);
+ long utilsSystemClass = jniUtils.getSystemClass(MethodHandles.Lookup.class);
+ //这里就是获取MethodHandles.Lookup所在模块的jobject
+ long module = jniUtils.JNU_CallMethodByNameWithoutArg(utilsSystemClass, "getModule", "()Ljava/lang/Module;");
+ module = jniUtils.NewGlobalRef(module);
+ //将const char*转为jstring
+ long pkg = jniUtils.StringToJString(tmp.allocateUtf8String("java.lang.invoke"));
+ pkg = jniUtils.NewGlobalRef(pkg);
+ //调用JavaLangAccess::addOpensToAllUnnamed(Module m, String pkg)
+ MemorySegment address = (MemorySegment) addExport.invokeExact(
+         jniUtils.jniEnvPointer, MemorySegment.NULL, MemorySegment.ofAddress(javaLangAccess), tmp.allocateUtf8String("addOpensToAllUnnamed"),
+         tmp.allocateUtf8String("(Ljava/lang/Module;Ljava/lang/String;)V"), MemorySegment.ofAddress(module), MemorySegment.ofAddress(pkg));
+ Field field = MethodHandles.Lookup.class.getDeclaredField("IMPL_LOOKUP");
+ field.setAccessible(true);
+ Object o = field.get(null);
+ System.out.println(o);
+
+```
