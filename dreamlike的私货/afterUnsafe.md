@@ -55,7 +55,7 @@ return (MethodHandles.Lookup) UNSAFE.getObject(UNSAFE.staticFieldBase(implLookup
 这里在替换时就会有一个隐藏的坑，原有的Unsafe操作原理是直接操作对应内存所以不是const也是有很好的效果的，但是Varhandle比较复杂涉及到多重编译，内联优化所以必须是const的，否则性能下降的很客观，你需要声明成如下代码才能获取更好的性能。
 
 ```java
-private static VarHandle VH = ...
+private final static VarHandle VH = ...
 ```
 
 如果你的模式比较固定，只需要一种形式的操作又想延迟操作不妨试试invokeDynamic+ConstantCallSite,将对应的`MethodHandle methodHandle = varHandle.toMethodHandle(VarHandle.AccessMode.GET);` 转换为Methodhandle后塞入callsite.

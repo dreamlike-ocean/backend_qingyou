@@ -76,14 +76,6 @@
 ## dreamlike的私货
 
 
-* Loom
-  * [openjdk loom](https://openjdk.org/projects/loom/) 
-  * [fiber and continuation](dreamlike的私货/Project%20Loom%20Java虚拟机的纤程和计算续体.md)
-  * [State of Loom - Part 1](/dreamlike的私货/state_of_loom_part1.md)
-  * [State of Loom - Part 2](/dreamlike的私货/state_of_loom_part2.md)
-  * [Spring的Loom化改造](dreamlike的私货/Spring的loom化改造.md)
-  * [loom的实现](dreamlike的私货/loom的实现.md)
-  * [为什么jvm需要有栈协程](dreamlike的私货/为什么jvm需要有栈协程.md) 
 * [响应式的锁](dreamlike的私货/%E5%93%8D%E5%BA%94%E5%BC%8F%E7%9A%84%E9%94%81.md)
 * [[翻译]为什么现代的jvm仍然偏爱安全点](dreamlike的私货/【翻译】为什么现代的JVM分析器仍然偏爱安全点？.md)
 * [io_uring介绍](dreamlike的私货/io_uring.md)
@@ -96,3 +88,12 @@
   * [Panama浅析](dreamlike的私货/Panama浅析.md)
 * java杂谈
   * [失去了Unsafe内存操作之后该何去何从](dreamlike的私货/afterUnsafe.md)  
+  * Loom
+    * [openjdk loom](https://openjdk.org/projects/loom/) 
+    * [fiber and continuation](dreamlike的私货/Project%20Loom%20Java虚拟机的纤程和计算续体.md)
+    * [State of Loom - Part 1](/dreamlike的私货/state_of_loom_part1.md)
+    * [State of Loom - Part 2](/dreamlike的私货/state_of_loom_part2.md)
+    * [Spring的Loom化改造](dreamlike的私货/Spring的loom化改造.md)
+    * [loom的实现](dreamlike的私货/loom的实现.md)
+    * [为什么jvm需要有栈协程](dreamlike的私货/为什么jvm需要有栈协程.md) 
+    * [VitrualThread对于synchronized适配](dreamlike的私货/synchronized适配.md) 
